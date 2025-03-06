@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Moon, Sun, Wallet2, Book, GraduationCap, Clock, Copy } from 'lucide-react';
+import { CheckCircle, Moon, Sun, Wallet2, Book, GraduationCap, Clock, Copy, User } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
@@ -96,7 +96,7 @@ const Portfolio = () => {
 
   const truncatedWalletAddress = profile?.wallet_address
     ? `${profile.wallet_address.substring(0, 6)}...${profile.wallet_address.substring(profile.wallet_address.length - 4)}`
-    : '0x...';
+    : 'Wallet not connected';
 
   const handleCopyAddress = async () => {
     if (profile?.wallet_address) {
@@ -158,11 +158,17 @@ const Portfolio = () => {
         <div className="bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-3xl py-12 px-8 mb-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <img
-                src={profile?.avatar_url || "https://images.unsplash.com/photo-1570295999680-b97e19f2ca62?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=880&q=80"}
-                alt="User Avatar"
-                className="rounded-full w-24 h-24 mr-6"
-              />
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt="User Avatar"
+                  className="rounded-full w-24 h-24 mr-6"
+                />
+              ) : (
+                <div className="rounded-full w-24 h-24 mr-6 bg-gray-400 flex items-center justify-center">
+                  <User className="text-white h-12 w-12" />
+                </div>
+              )}
               <div>
                 <h2 className="text-3xl font-semibold">{profile?.full_name || 'Loading...'}</h2>
                 <p className="text-gray-200">Joined {joinDate}</p>
@@ -178,10 +184,12 @@ const Portfolio = () => {
               <div>
                 <p className="text-gray-600">Wallet</p>
                 <p className="text-sm">{truncatedWalletAddress}</p>
-                <button onClick={handleCopyAddress} className="text-blue-500 text-sm flex items-center">
-                  Copy address
-                  {copied && <CheckCircle className="ml-1 h-4 w-4 text-green-500" />}
-                </button>
+                {profile?.wallet_address && (
+                  <button onClick={handleCopyAddress} className="text-blue-500 text-sm flex items-center">
+                    Copy address
+                    {copied && <CheckCircle className="ml-1 h-4 w-4 text-green-500" />}
+                  </button>
+                )}
               </div>
               <Wallet2 className="h-8 w-8 text-purple-500" />
             </div>
