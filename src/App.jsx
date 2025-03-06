@@ -1,9 +1,47 @@
 import React from 'react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle, Moon, Sun, ArrowRight } from 'lucide-react';
+import { supabase } from './lib/supabaseClient';
+import { BrowserRouter as Router, Route, Routes, Link, useNavigate } from 'react-router-dom';
+import Login from './pages/Login';
 
 function App() {
   const [theme, setTheme] = useState('light');
+  const [data, setData] = useState(null);
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+        getProfile(session?.user.id);
+      });
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      getProfile(session?.user.id);
+    });
+  }, []);
+
+  const getProfile = async (userId) => {
+    if (userId) {
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+      } else {
+        setProfile(profileData);
+      }
+    } else {
+      setProfile(null);
+    }
+  };
 
   const toggleTheme = () => {
     setTheme(theme === 'light' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-800');
@@ -31,6 +69,28 @@ function App() {
     },
   ];
 
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data, error } = await supabase
+        .from('your_table_name') // Replace 'your_table_name'
+        .select('*');
+
+      if (error) {
+        console.error('Error fetching data:', error);
+      } else {
+        setData(data);
+        console.log('Supabase data:', data);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setProfile(null);
+  };
+
   return (
     <div className={`min-h-screen ${theme === 'dark' ? `bg-${backgroundColorDark} text-${textColorLight}` : `bg-${backgroundColorLight} text-${textColorDark}`}`}>
       {/* Navigation Bar */}
@@ -38,10 +98,10 @@ function App() {
         <nav className="container mx-auto px-6 py-3 flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center">
-            <a className={`text-xl font-semibold text-${textColorDark} dark:text-${textColorLight}`} href="/">
+            <Link to="/" className={`text-xl font-semibold text-${textColorDark} dark:text-${textColorLight}`}>
               <CheckCircle className="inline-block mr-2" />
               YourBrand
-            </a>
+            </Link>
           </div>
 
           {/* Login Link */}
@@ -49,7 +109,21 @@ function App() {
             <button onClick={toggleTheme} className="focus:outline-none">
               {theme === 'light' ? <Moon className="h-5 w-5 text-gray-800 dark:text-white" /> : <Sun className="h-5 w-5 text-white" />}
             </button>
-            <a className={`text-${textColorDark} dark:text-${textColorLight}`} href="/login">Login</a>
+            {profile ? (
+              <>
+                <span className={`text-${textColorDark} dark:text-${textColorLight} mr-4`}>
+                  {profile.full_name}
+                </span>
+                <button
+                  className={`text-${textColorDark} dark:text-${textColorLight}`}
+                  onClick={handleLogout}
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Link className={`text-${textColorDark} dark:text-${textColorLight}`} to="/login">Login</Link>
+            )}
           </div>
         </nav>
       </header>
@@ -111,8 +185,26 @@ function App() {
           </p>
         </div>
       </footer>
+       {/* Display Supabase Data */}
+       {data && (
+        <div>
+          <h3>Supabase Data:</h3>
+          <pre>{JSON.stringify(data, null, 2)}</pre>
+        </div>
+      )}
     </div>
   );
 }
 
-export default App;
+function Root() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<App />} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default Root;
