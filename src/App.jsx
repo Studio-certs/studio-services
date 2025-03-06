@@ -1,13 +1,14 @@
 import React from 'react';
 import { useState, useEffect } from 'react';
-import { CheckCircle, Moon, Sun, ArrowRight } from 'lucide-react';
+import { Moon, Sun, ArrowRight } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { BrowserRouter as Router, Route, Routes, Link, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
+import Portfolio from './pages/Portfolio';
+import { CheckCircle } from 'lucide-react';
 
 function App() {
   const [theme, setTheme] = useState('light');
-  const [data, setData] = useState(null);
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const navigate = useNavigate();
@@ -16,75 +17,38 @@ function App() {
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
         setSession(session);
-        getProfile(session?.user.id);
       });
 
     supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      getProfile(session?.user.id);
     });
   }, []);
-
-  const getProfile = async (userId) => {
-    if (userId) {
-      const { data: profileData, error } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching profile:', error);
-      } else {
-        setProfile(profileData);
-      }
-    } else {
-      setProfile(null);
-    }
-  };
 
   const toggleTheme = () => {
     setTheme(theme === 'light' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-800');
   };
 
-  const primaryColor = '#2d3748'; // Dark Gray, similar to the background image
-  const secondaryColor = '#4a5568'; // Slightly lighter gray
-  const textColorLight = '#edf2f7'; // Very light gray for text on dark backgrounds
-  const textColorDark = '#2d3748'; // Dark gray for text on light backgrounds
-  const backgroundColorLight = '#f7fafc'; // Very light gray for light mode background
-  const backgroundColorDark = '#1a202c'; // Dark gray for dark mode background
+  const primaryColor = '#2d3748';
+  const secondaryColor = '#4a5568';
+  const textColorLight = '#edf2f7';
+  const textColorDark = '#2d3748';
+  const backgroundColorLight = '#f7fafc';
+  const backgroundColorDark = '#1a202c';
 
   const services = [
     {
       name: 'Limodali',
       description: 'Empowering individuals through an intuitive and engaging online learning experience. Explore a world of knowledge with our innovative platform.',
       link: 'https://dev.limodali.com/',
-      image: 'https://studio-bucket.s3-ap-southeast-2.amazonaws.com/image/profilePicture/original/Profile_IldUlQnEHZAI.png', // Replace with actual image URL
+      image: 'https://studio-bucket.s3-ap-southeast-2.amazonaws.com/image/profilePicture/original/Profile_IldUlQnEHZAI.png',
     },
     {
       name: 'Cleen Token',
       description: 'Facilitating secure and efficient cryptocurrency exchange with a user-centric platform. Experience seamless trading and investment opportunities.',
       link: 'https://cleen-token.netlify.app/',
-      image: 'https://studio-bucket.s3-ap-southeast-2.amazonaws.com/image/profilePicture/original/Profile_zkUxwypfCYMQ.png', // Replace with actual image URL
+      image: 'https://studio-bucket.s3-ap-southeast-2.amazonaws.com/image/profilePicture/original/Profile_zkUxwypfCYMQ.png',
     },
   ];
-
-  useEffect(() => {
-    const fetchData = async () => {
-      const { data, error } = await supabase
-        .from('your_table_name') // Replace 'your_table_name'
-        .select('*');
-
-      if (error) {
-        console.error('Error fetching data:', error);
-      } else {
-        setData(data);
-        console.log('Supabase data:', data);
-      }
-    };
-
-    fetchData();
-  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -98,9 +62,12 @@ function App() {
         <nav className="container mx-auto px-6 py-3 flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center">
-            <Link to="/" className={`text-xl font-semibold text-${textColorDark} dark:text-${textColorLight}`}>
-              <CheckCircle className="inline-block mr-2" />
-              YourBrand
+            <Link to="/" className={`flex items-center text-xl font-semibold text-${textColorDark} dark:text-${textColorLight}`}>
+              <img
+                src="https://studio-bucket.s3-ap-southeast-2.amazonaws.com/image/profilePicture/original/Profile_hksQdQJp7c64.png"
+                alt="YourBrand Logo"
+                className="h-8 w-8 mr-2"
+              />
             </Link>
           </div>
 
@@ -109,11 +76,9 @@ function App() {
             <button onClick={toggleTheme} className="focus:outline-none">
               {theme === 'light' ? <Moon className="h-5 w-5 text-gray-800 dark:text-white" /> : <Sun className="h-5 w-5 text-white" />}
             </button>
-            {profile ? (
+            {session?.user ? (
               <>
-                <span className={`text-${textColorDark} dark:text-${textColorLight} mr-4`}>
-                  {profile.full_name}
-                </span>
+                <Link className={`text-${textColorDark} dark:text-${textColorLight}`} to="/portfolio">Portfolio</Link>
                 <button
                   className={`text-${textColorDark} dark:text-${textColorLight}`}
                   onClick={handleLogout}
@@ -185,13 +150,6 @@ function App() {
           </p>
         </div>
       </footer>
-       {/* Display Supabase Data */}
-       {data && (
-        <div>
-          <h3>Supabase Data:</h3>
-          <pre>{JSON.stringify(data, null, 2)}</pre>
-        </div>
-      )}
     </div>
   );
 }
@@ -202,6 +160,7 @@ function Root() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<App />} />
+        <Route path="/portfolio" element={<Portfolio />} />
       </Routes>
     </Router>
   );
