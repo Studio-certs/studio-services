@@ -11,6 +11,7 @@ const Portfolio = () => {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('tokens');
+  const [sepoliaTokens, setSepoliaTokens] = useState([]);
 
   const [tokens, setTokens] = useState([
     { name: 'Token A', balance: 100 },
@@ -66,11 +67,102 @@ const Portfolio = () => {
       }
     };
 
+    const fetchSepoliaTokens = async () => {
+      if (profile?.wallet_address) {
+        const infuraProjectId = import.meta.env.VITE_INFURA_PROJECT_ID;
+        const infuraUrl = `https://sepolia.infura.io/v3/${infuraProjectId}`;
+        const walletAddress = profile.wallet_address;
+
+        // API to fetch token transfers for an address
+        const apiUrl = `https://api.sepolia.etherscan.io/api?module=account&action=tokentx&address=${walletAddress}&startblock=0&endblock=99999999&sort=asc&apikey=${import.meta.env.VITE_ETHERSCAN_API_KEY}`;
+
+        try {
+          const response = await fetch(apiUrl);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const data = await response.json();
+
+          if (data.status === "1" && data.message === "OK") {
+            const tokenContracts = [...new Set(data.result.map(tx => tx.tokenAddress))]; // Extract unique token contract addresses
+
+            const tokenBalances = [];
+
+            // Fetch balance for each token contract
+            for (const tokenAddress of tokenContracts) {
+              const data = JSON.stringify({
+                jsonrpc: "2.0",
+                method: "eth_call",
+                params: [
+                  {
+                    to: tokenAddress,
+                    data: `0x70a08231000000000000000000000000${walletAddress.slice(2)}` // balanceOf(address)
+                  },
+                  "latest"
+                ],
+                id: 1
+              });
+
+              try {
+                const balanceResponse = await fetch(infuraUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: data
+                });
+
+                if (!balanceResponse.ok) {
+                  console.error(`HTTP error fetching balance for ${tokenAddress}: ${balanceResponse.status}`);
+                  continue; // Skip to the next token if there's an error
+                }
+
+                const balanceJson = await balanceResponse.json();
+
+                if (balanceJson.error) {
+                  console.error(`Infura error for ${tokenAddress}:`, balanceJson.error);
+                  continue; // Skip to the next token if there's an error
+                }
+
+                const balanceHex = balanceJson.result;
+                const balance = parseInt(balanceHex, 16);
+
+                // Get token details from Etherscan data
+                const tokenInfo = data.result.find(tx => tx.tokenAddress === tokenAddress);
+
+                tokenBalances.push({
+                  tokenSymbol: tokenInfo ? tokenInfo.tokenSymbol : 'N/A',
+                  tokenName: tokenInfo ? tokenInfo.tokenName : 'N/A',
+                  tokenAddress: tokenAddress,
+                  balance: balance
+                });
+
+              } catch (error) {
+                console.error(`Error fetching balance for ${tokenAddress}:`, error);
+              }
+            }
+            setSepoliaTokens(tokenBalances);
+          } else {
+            console.error("Error fetching Sepolia tokens:", data.message);
+            setSepoliaTokens([]); // Ensure tokens are cleared on error
+          }
+        } catch (error) {
+          console.error("Error fetching Sepolia tokens:", error);
+          setSepoliaTokens([]); // Ensure tokens are cleared on error
+        }
+      } else {
+        setSepoliaTokens([]);
+      }
+    };
+
     if (session?.user) {
       fetchProfile();
       fetchCourses();
+      if (profile?.wallet_address) {
+        fetchSepoliaTokens();
+      }
     }
-  }, [session]);
+  }, [session, profile?.wallet_address]);
 
   const toggleTheme = () => {
     setTheme(theme === 'light' ? 'dark' : 'light');
@@ -219,12 +311,18 @@ const Portfolio = () => {
           <div>
             <h3 className="text-lg font-semibold mb-4">Tokens</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {tokens.map((token, index) => (
-                <div key={index} className="bg-white rounded-2xl shadow-md p-4">
-                  <p className="font-semibold">{token.name}</p>
-                  <p>Balance: {token.balance}</p>
-                </div>
-              ))}
+              {sepoliaTokens.length > 0 ? (
+                sepoliaTokens.map((token, index) => (
+                  <div key={index} className="bg-white rounded-2xl shadow-md p-4">
+                    <p className="font-semibold">{token.tokenSymbol}</p>
+                    <p>Name: {token.tokenName}</p>
+                    <p>Contract Address: {token.tokenAddress}</p>
+                    <p>Balance: {token.balance}</p>
+                  </div>
+                ))
+              ) : (
+                <p>No Sepolia tokens found for this wallet.</p>
+              )}
             </div>
           </div>
         )}
