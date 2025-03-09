@@ -73,82 +73,59 @@ const Portfolio = () => {
         const infuraUrl = `https://sepolia.infura.io/v3/${infuraProjectId}`;
         const walletAddress = profile.wallet_address;
 
-        // API to fetch token transfers for an address
-        const apiUrl = `https://api.sepolia.etherscan.io/api?module=account&action=tokentx&address=${walletAddress}&startblock=0&endblock=99999999&sort=asc&apikey=${import.meta.env.VITE_ETHERSCAN_API_KEY}`;
+        // ERC-20 Transfer event topic hash
+        const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+
+        const data = JSON.stringify({
+          jsonrpc: "2.0",
+          method: "eth_getLogs",
+          params: [
+            {
+              fromBlock: "0x0", // Earliest block
+              toBlock: "latest",
+              address: null, // all contracts
+              topics: [transferTopic, null, `0x000000000000000000000000${walletAddress.slice(2)}`] // Transfer to the wallet
+            }
+          ],
+          id: 1
+        });
 
         try {
-          const response = await fetch(apiUrl);
+          const response = await fetch(infuraUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: data
+          });
+
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
-          const data = await response.json();
 
-          if (data.status === "1" && data.message === "OK") {
-            const tokenContracts = [...new Set(data.result.map(tx => tx.tokenAddress))]; // Extract unique token contract addresses
+          const text = await response.text(); // Get the response as text
+          let jsonResponse;
+          try {
+            jsonResponse = JSON.parse(text); // Try to parse it as JSON
+          } catch (e) {
+            console.error("Error parsing JSON:", e);
+            console.log("Response text:", text); // Log the actual response
+            setSepoliaTokens([]);
+            return;
+          }
 
-            const tokenBalances = [];
-
-            // Fetch balance for each token contract
-            for (const tokenAddress of tokenContracts) {
-              const data = JSON.stringify({
-                jsonrpc: "2.0",
-                method: "eth_call",
-                params: [
-                  {
-                    to: tokenAddress,
-                    data: `0x70a08231000000000000000000000000${walletAddress.slice(2)}` // balanceOf(address)
-                  },
-                  "latest"
-                ],
-                id: 1
-              });
-
-              try {
-                const balanceResponse = await fetch(infuraUrl, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json'
-                  },
-                  body: data
-                });
-
-                if (!balanceResponse.ok) {
-                  console.error(`HTTP error fetching balance for ${tokenAddress}: ${balanceResponse.status}`);
-                  continue; // Skip to the next token if there's an error
-                }
-
-                const balanceJson = await balanceResponse.json();
-
-                if (balanceJson.error) {
-                  console.error(`Infura error for ${tokenAddress}:`, balanceJson.error);
-                  continue; // Skip to the next token if there's an error
-                }
-
-                const balanceHex = balanceJson.result;
-                const balance = parseInt(balanceHex, 16);
-
-                // Get token details from Etherscan data
-                const tokenInfo = data.result.find(tx => tx.tokenAddress === tokenAddress);
-
-                tokenBalances.push({
-                  tokenSymbol: tokenInfo ? tokenInfo.tokenSymbol : 'N/A',
-                  tokenName: tokenInfo ? tokenInfo.tokenName : 'N/A',
-                  tokenAddress: tokenAddress,
-                  balance: balance
-                });
-
-              } catch (error) {
-                console.error(`Error fetching balance for ${tokenAddress}:`, error);
-              }
-            }
-            setSepoliaTokens(tokenBalances);
+          if (jsonResponse.error) {
+            console.error("Infura error:", jsonResponse.error);
+            setSepoliaTokens([]);
           } else {
-            console.error("Error fetching Sepolia tokens:", data.message);
-            setSepoliaTokens([]); // Ensure tokens are cleared on error
+            const logs = jsonResponse.result;
+            const tokenContracts = [...new Set(logs.map(log => log.address))]; // Extract unique contract addresses
+
+            setSepoliaTokens(tokenContracts.map(address => ({ tokenAddress: address })));
           }
         } catch (error) {
-          console.error("Error fetching Sepolia tokens:", error);
-          setSepoliaTokens([]); // Ensure tokens are cleared on error
+          console.error("Error fetching token contracts:", error);
+          setSepoliaTokens([]);
         }
       } else {
         setSepoliaTokens([]);
@@ -309,15 +286,12 @@ const Portfolio = () => {
         {/* Display content based on active tab */}
         {activeTab === 'tokens' && (
           <div>
-            <h3 className="text-lg font-semibold mb-4">Tokens</h3>
+            <h3 className="text-lg font-semibold mb-4">Token Contracts</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {sepoliaTokens.length > 0 ? (
                 sepoliaTokens.map((token, index) => (
                   <div key={index} className="bg-white rounded-2xl shadow-md p-4">
-                    <p className="font-semibold">{token.tokenSymbol}</p>
-                    <p>Name: {token.tokenName}</p>
                     <p>Contract Address: {token.tokenAddress}</p>
-                    <p>Balance: {token.balance}</p>
                   </div>
                 ))
               ) : (
