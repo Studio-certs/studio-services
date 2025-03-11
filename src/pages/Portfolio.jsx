@@ -13,6 +13,7 @@ const Portfolio = () => {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('tokens');
   const [tokenBalances, setTokenBalances] = useState([]);
+  const [nfts, setNfts] = useState([]);
 
   const predefinedTokenContracts = [
     {
@@ -21,17 +22,12 @@ const Portfolio = () => {
     }
   ];
 
-  const [tokens, setTokens] = useState([
-    { name: 'Token A', balance: 100 },
-    { name: 'Token B', balance: 50 },
-    { name: 'Token C', balance: 200 },
-  ]);
-
-  const [nfts, setNfts] = useState([
-    { name: 'NFT 1', image: 'https://via.placeholder.com/150' },
-    { name: 'NFT 2', image: 'https://via.placeholder.com/150' },
-    { name: 'NFT 3', image: 'https://via.placeholder.com/150' },
-  ]);
+  const nftContracts = [
+    {
+      name: 'Acleen NFT',
+      address: '0xb7a6dDeE93EbDbC0c5398f7e370863D30e40D642', // Replace with actual contract address
+    },
+  ];
 
   useEffect(() => {
     supabase.auth.getSession()
@@ -175,8 +171,79 @@ const Portfolio = () => {
       }
     };
 
+    const fetchNFTs = async () => {
+      if (profile?.wallet_address) {
+        const infuraProjectId = import.meta.env.VITE_INFURA_PROJECT_ID;
+        const infuraUrl = `https://sepolia.infura.io/v3/${infuraProjectId}`;
+        const walletAddress = profile.wallet_address.toLowerCase(); // Convert to lowercase for comparison
+
+        // Initialize web3 instance
+        const web3Instance = new Web3(infuraUrl);
+
+        let allNFTs = [];
+
+        for (const contract of nftContracts) {
+          // ERC-721 Transfer event signature
+          const transferEventSignature = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+
+          const payload = {
+            jsonrpc: "2.0",
+            method: "eth_getLogs",
+            params: [{
+              fromBlock: "0x0", // Fetch from the beginning
+              toBlock: "latest",
+              address: contract.address,
+              topics: [transferEventSignature, null, web3Instance.utils.padLeft(walletAddress, 64, '0')] // Filter for Transfer events where the 'to' address is the user's wallet
+            }],
+            id: 1
+          };
+
+          try {
+            const response = await fetch(infuraUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const jsonResponse = await response.json();
+
+            if (jsonResponse.error) {
+              console.error(`Infura error for ${contract.name}:`, jsonResponse.error);
+            } else {
+              const logs = jsonResponse.result;
+              // Extract token IDs from the logs (assuming ERC-721)
+              const ownedTokenIds = logs.map(log => web3Instance.utils.hexToNumber(log.topics[3]));
+
+              // For simplicity, just store the contract address and tokenId. In a real application, you'd likely want to fetch metadata for each NFT.
+              const nfts = ownedTokenIds.map(tokenId => ({
+                name: contract.name,
+                contractAddress: contract.address,
+                tokenId: tokenId,
+                title: `${contract.name} #${tokenId}`, // Create a basic title
+                description: `NFT from ${contract.name} with Token ID ${tokenId}`, // Create a basic description
+                imageUrl: null, // Replace with a default image or fetch from a metadata service
+              }));
+              allNFTs = allNFTs.concat(nfts);
+            }
+          } catch (error) {
+            console.error(`Error fetching NFTs for ${contract.name}:`, error);
+          }
+        }
+        setNfts(allNFTs);
+      } else {
+        setNfts([]);
+      }
+    };
+
     if (session?.user && profile?.wallet_address) {
       fetchTokenBalances();
+      fetchNFTs();
     }
 
     if (session?.user) {
@@ -354,12 +421,20 @@ const Portfolio = () => {
           <div>
             <h3 className="text-lg font-semibold mb-4">NFTs</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {nfts.map((nft, index) => (
-                <div key={index} className="bg-white rounded-2xl shadow-md p-4">
-                  <img src={nft.image} alt={nft.name} className="w-full h-32 object-cover rounded-md mb-2" />
-                  <p className="font-semibold">{nft.name}</p>
-                </div>
-              ))}
+              {nfts.length > 0 ? (
+                nfts.map((nft, index) => (
+                  <div key={index} className="bg-white rounded-2xl shadow-md p-4">
+                    {nft.imageUrl && (
+                      <img src={nft.imageUrl} alt={nft.title} className="w-full h-32 object-cover rounded-md mb-2" />
+                    )}
+                    <p className="font-semibold">{nft.title || 'Untitled'}</p>
+                    <p className="text-sm">{nft.description || 'No description'}</p>
+                    <p className="text-xs text-gray-500">Contract: {nft.contractAddress}</p>
+                  </div>
+                ))
+              ) : (
+                <p>No NFTs found for this wallet.</p>
+              )}
             </div>
           </div>
         )}
