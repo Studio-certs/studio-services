@@ -403,10 +403,12 @@ const Portfolio = () => {
                 tokenBalances.map((token, index) => {
                   const balance = token.balance === 'Error' ? 'Error' : (parseFloat(token.balance) / Math.pow(10, Number(token.decimals))).toFixed(2);
                   return (
-                    <div key={index} className="bg-white rounded-2xl shadow-md p-4">
-                      <p className="font-semibold">{token.name}</p>
-                      <p>Address: {token.address}</p>
-                      <p>Balance: {balance}</p>
+                    <div key={index} className={`bg-white rounded-2xl shadow-md p-6 flex flex-col dark:bg-${backgroundColorDark} dark:border dark:border-${primaryColor}`}>
+                      <h4 className={`text-xl font-semibold mb-2 dark:text-${textColorLight}`}>{token.name}</h4>
+                      <p className={`text-gray-600 text-sm mb-2 dark:text-${textColorLight}`}>Address: {token.address}</p>
+                      <p className={`text-gray-700 dark:text-${textColorLight}`}>
+                        Balance: <span className="font-bold">{balance}</span>
+                      </p>
                     </div>
                   );
                 })
@@ -423,12 +425,16 @@ const Portfolio = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {nfts.length > 0 ? (
                 nfts.map((nft, index) => (
-                  <div key={index} className="bg-white rounded-2xl shadow-md p-4">
-                    {nft.imageUrl && (
+                  <div key={index} className={`bg-white rounded-2xl shadow-md p-4 dark:bg-${backgroundColorDark} dark:border dark:border-${primaryColor} flex flex-col`}>
+                    {nft.imageUrl ? (
                       <img src={nft.imageUrl} alt={nft.title} className="w-full h-32 object-cover rounded-md mb-2" />
+                    ) : (
+                      <div className="w-full h-32 bg-gray-200 rounded-md mb-2 flex items-center justify-center">
+                        <span>No Image</span>
+                      </div>
                     )}
-                    <p className="font-semibold">{nft.title || 'Untitled'}</p>
-                    <p className="text-sm">{nft.description || 'No description'}</p>
+                    <p className={`font-semibold dark:text-${textColorLight}`}>{nft.title || 'Untitled'}</p>
+                    <p className={`text-sm dark:text-${textColorLight}`}>{nft.description || 'No description'}</p>
                     <p className="text-xs text-gray-500">Contract: {nft.contractAddress}</p>
                   </div>
                 ))
