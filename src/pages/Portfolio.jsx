@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CheckCircle, Moon, Sun, Wallet2, Book, GraduationCap, Clock, Copy, User } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import Web3 from 'web3';
 
 const Portfolio = () => {
   const [theme, setTheme] = useState('light');
@@ -11,7 +12,14 @@ const Portfolio = () => {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('tokens');
-  const [sepoliaTokens, setSepoliaTokens] = useState([]);
+  const [tokenBalances, setTokenBalances] = useState([]);
+
+  const predefinedTokenContracts = [
+    {
+      name: 'Cleen Token',
+      address: '0x975aE55f09d4C9c485d1D97C49C549BEF7a24504', // Replace with actual contract address
+    }
+  ];
 
   const [tokens, setTokens] = useState([
     { name: 'Token A', balance: 100 },
@@ -67,77 +75,113 @@ const Portfolio = () => {
       }
     };
 
-    const fetchSepoliaTokens = async () => {
+    const fetchTokenBalances = async () => {
       if (profile?.wallet_address) {
         const infuraProjectId = import.meta.env.VITE_INFURA_PROJECT_ID;
         const infuraUrl = `https://sepolia.infura.io/v3/${infuraProjectId}`;
         const walletAddress = profile.wallet_address;
 
-        // ERC-20 Transfer event topic hash
-        const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+        // Initialize web3 instance
+        const web3 = new Web3(infuraUrl);
 
-        const data = JSON.stringify({
-          jsonrpc: "2.0",
-          method: "eth_getLogs",
-          params: [
+        // Function to fetch token decimals
+        const getTokenDecimals = async (tokenAddress) => {
+          const decimalsABI = [
             {
-              fromBlock: "0x0", // Earliest block
-              toBlock: "latest",
-              address: null, // all contracts
-              topics: [transferTopic, null, `0x000000000000000000000000${walletAddress.slice(2)}`] // Transfer to the wallet
+              "constant": true,
+              "inputs": [],
+              "name": "decimals",
+              "outputs": [{ "name": "", "type": "uint8" }],
+              "payable": false,
+              "stateMutability": "view",
+              "type": "function"
             }
-          ],
-          id: 1
-        });
-
-        try {
-          const response = await fetch(infuraUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: data
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          const text = await response.text(); // Get the response as text
-          let jsonResponse;
+          ];
+          const contract = new web3.eth.Contract(decimalsABI, tokenAddress);
           try {
-            jsonResponse = JSON.parse(text); // Try to parse it as JSON
-          } catch (e) {
-            console.error("Error parsing JSON:", e);
-            console.log("Response text:", text); // Log the actual response
-            setSepoliaTokens([]);
-            return;
+            const decimals = await contract.methods.decimals().call();
+            return decimals;
+          } catch (error) {
+            console.error(`Error fetching decimals for ${tokenAddress}:`, error);
+            return 18; // Default to 18 if fetching fails
           }
+        };
 
-          if (jsonResponse.error) {
-            console.error("Infura error:", jsonResponse.error);
-            setSepoliaTokens([]);
-          } else {
-            const logs = jsonResponse.result;
-            const tokenContracts = [...new Set(logs.map(log => log.address))]; // Extract unique contract addresses
+        const balances = await Promise.all(
+          predefinedTokenContracts.map(async (token) => {
+            // ABI for balanceOf function
+            const balanceOfABI = [
+              {
+                "constant": true,
+                "inputs": [{ "name": "_owner", "type": "address" }],
+                "name": "balanceOf",
+                "outputs": [{ "name": "balance", "type": "uint256" }],
+                "payable": false,
+                "stateMutability": "view",
+                "type": "function"
+              }
+            ];
 
-            setSepoliaTokens(tokenContracts.map(address => ({ tokenAddress: address })));
-          }
-        } catch (error) {
-          console.error("Error fetching token contracts:", error);
-          setSepoliaTokens([]);
-        }
+            // Fetch token decimals
+            const decimals = await getTokenDecimals(token.address);
+
+            // Construct the data payload for the balanceOf function call
+            const functionSignature = balanceOfABI[0].name + '(' + balanceOfABI[0].inputs.map(input => input.type).join(',') + ')';
+            const functionHash = web3.utils.sha3(functionSignature).substring(0, 10);
+            const data = functionHash + web3.utils.padLeft(walletAddress.slice(2), 64, '0');
+
+            const payload = {
+              jsonrpc: "2.0",
+              method: "eth_call",
+              params: [{
+                to: token.address,
+                data: data
+              }, "latest"],
+              id: 1
+            };
+
+            try {
+              const response = await fetch(infuraUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+              });
+
+              if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+              }
+
+              const jsonResponse = await response.json();
+
+              if (jsonResponse.error) {
+                console.error(`Infura error for ${token.name}:`, jsonResponse.error);
+                return { name: token.name, address: token.address, balance: 'Error', decimals: decimals };
+              } else {
+                const balance = web3.utils.hexToNumberString(jsonResponse.result);
+                return { name: token.name, address: token.address, balance: balance, decimals: decimals };
+              }
+            } catch (error) {
+              console.error(`Error fetching balance for ${token.name}:`, error);
+              return { name: token.name, address: token.address, balance: 'Error', decimals: decimals };
+            }
+          })
+        );
+
+        setTokenBalances(balances);
       } else {
-        setSepoliaTokens([]);
+        setTokenBalances([]);
       }
     };
+
+    if (session?.user && profile?.wallet_address) {
+      fetchTokenBalances();
+    }
 
     if (session?.user) {
       fetchProfile();
       fetchCourses();
-      if (profile?.wallet_address) {
-        fetchSepoliaTokens();
-      }
     }
   }, [session, profile?.wallet_address]);
 
@@ -286,16 +330,21 @@ const Portfolio = () => {
         {/* Display content based on active tab */}
         {activeTab === 'tokens' && (
           <div>
-            <h3 className="text-lg font-semibold mb-4">Token Contracts</h3>
+            <h3 className="text-lg font-semibold mb-4">Token Balances</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {sepoliaTokens.length > 0 ? (
-                sepoliaTokens.map((token, index) => (
-                  <div key={index} className="bg-white rounded-2xl shadow-md p-4">
-                    <p>Contract Address: {token.tokenAddress}</p>
-                  </div>
-                ))
+              {tokenBalances.length > 0 ? (
+                tokenBalances.map((token, index) => {
+                  const balance = token.balance === 'Error' ? 'Error' : (parseFloat(token.balance) / Math.pow(10, Number(token.decimals))).toFixed(2);
+                  return (
+                    <div key={index} className="bg-white rounded-2xl shadow-md p-4">
+                      <p className="font-semibold">{token.name}</p>
+                      <p>Address: {token.address}</p>
+                      <p>Balance: {balance}</p>
+                    </div>
+                  );
+                })
               ) : (
-                <p>No Sepolia tokens found for this wallet.</p>
+                <p>No token balances found for this wallet.</p>
               )}
             </div>
           </div>
