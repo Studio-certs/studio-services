@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { Wallet2, Copy, User, ArrowRight, Image } from 'lucide-react';
+import { Wallet2, Copy, User, ArrowRight, Image, ExternalLink } from 'lucide-react';
 import Web3 from 'web3';
 
 const Portfolio = () => {
@@ -182,6 +182,7 @@ const Portfolio = () => {
                 tokenId: tokenId,
                 title: `${contract.name} #${tokenId}`,
                 description: `NFT from ${contract.name} with Token ID ${tokenId}`,
+                openseaUrl: `${import.meta.env.VITE_OPENSEA_TESTNET_URL}/${contract.address}/${tokenId}`
               }));
               allNFTs = allNFTs.concat(nfts);
             }
@@ -228,6 +229,10 @@ const Portfolio = () => {
         alert("Failed to copy wallet address. Please try again.");
       }
     }
+  };
+
+  const handleNFTClick = (nft) => {
+    window.open(nft.openseaUrl, '_blank');
   };
 
   return (
@@ -367,8 +372,12 @@ const Portfolio = () => {
             <div className="mt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {nfts.map((nft, index) => (
-                  <div key={index} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-blue-500 transition">
-                    <div className="aspect-square bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
+                  <div 
+                    key={index} 
+                    className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-blue-500 transition cursor-pointer group"
+                    onClick={() => handleNFTClick(nft)}
+                  >
+                    <div className="aspect-square bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center relative">
                       {nft.imageUrl ? (
                         <img 
                           src={nft.imageUrl} 
@@ -381,6 +390,9 @@ const Portfolio = () => {
                           <div className="text-sm font-medium text-gray-400">NFT #{nft.tokenId}</div>
                         </div>
                       )}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <ExternalLink className="w-6 h-6 text-blue-600" />
+                      </div>
                     </div>
                     <div className="p-4">
                       <h3 className="font-semibold text-gray-900">{nft.title}</h3>
