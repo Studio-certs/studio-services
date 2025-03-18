@@ -1,14 +1,12 @@
 import React from 'react';
 import { useState, useEffect } from 'react';
-import { Moon, Sun, ArrowRight } from 'lucide-react';
+import { ArrowRight, ChevronRight } from 'lucide-react';
 import { supabase } from './lib/supabaseClient';
 import { BrowserRouter as Router, Route, Routes, Link, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Portfolio from './pages/Portfolio';
-import { CheckCircle } from 'lucide-react';
 
 function App() {
-  const [theme, setTheme] = useState('light');
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const navigate = useNavigate();
@@ -24,16 +22,10 @@ function App() {
     });
   }, []);
 
-  const toggleTheme = () => {
-    setTheme(theme === 'light' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-800');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setProfile(null);
   };
-
-  const primaryColor = '#2d3748';
-  const secondaryColor = '#4a5568';
-  const textColorLight = '#edf2f7';
-  const textColorDark = '#2d3748';
-  const backgroundColorLight = '#f7fafc';
-  const backgroundColorDark = '#1a202c';
 
   const services = [
     {
@@ -41,79 +33,86 @@ function App() {
       description: 'Empowering individuals through an intuitive and engaging online learning experience. Explore a world of knowledge with our innovative platform.',
       link: 'https://dev.limodali.com/',
       image: 'https://studio-bucket.s3-ap-southeast-2.amazonaws.com/image/profilePicture/original/Profile_IldUlQnEHZAI.png',
+      tags: ['Education', 'Technology']
     },
     {
       name: 'Cleen Token',
       description: 'Facilitating secure and efficient cryptocurrency exchange with a user-centric platform. Experience seamless trading and investment opportunities.',
       link: 'https://cleen-token.netlify.app/',
       image: 'https://studio-bucket.s3-ap-southeast-2.amazonaws.com/image/profilePicture/original/Profile_zkUxwypfCYMQ.png',
-    },
+      tags: ['Blockchain', 'Finance']
+    }
   ];
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setProfile(null);
-  };
-
   return (
-    <div className={`min-h-screen ${theme === 'dark' ? `bg-${backgroundColorDark} text-${textColorLight}` : `bg-${backgroundColorLight} text-${textColorDark}`}`}>
+    <div className="min-h-screen bg-white">
       {/* Navigation Bar */}
-      <header className={`shadow dark:bg-${backgroundColorDark} dark:border-b dark:border-${primaryColor} bg-white`}>
-        <nav className="container mx-auto px-6 py-3 flex items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center">
-            <Link to="/" className={`flex items-center text-xl font-semibold text-${textColorDark} dark:text-${textColorLight}`}>
+      <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
+        <nav className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Link to="/" className="flex items-center">
               <img
                 src="https://studio-bucket.s3-ap-southeast-2.amazonaws.com/image/profilePicture/original/Profile_hksQdQJp7c64.png"
                 alt="YourBrand Logo"
                 className="h-8 w-8 mr-2"
               />
             </Link>
-          </div>
 
-          {/* Login Link */}
-          <div className="flex items-center space-x-4">
-            <button onClick={toggleTheme} className="focus:outline-none">
-              {theme === 'light' ? <Moon className="h-5 w-5 text-gray-800 dark:text-white" /> : <Sun className="h-5 w-5 text-white" />}
-            </button>
-            {session?.user ? (
-              <>
-                <Link className={`text-${textColorDark} dark:text-${textColorLight}`} to="/portfolio">Portfolio</Link>
-                <button
-                  className={`text-${textColorDark} dark:text-${textColorLight}`}
-                  onClick={handleLogout}
+            <div className="flex items-center space-x-6">
+              {session?.user ? (
+                <>
+                  <Link 
+                    to="/portfolio" 
+                    className="text-sm font-medium hover:text-blue-600 transition"
+                  >
+                    Portfolio
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="text-sm font-medium hover:text-blue-600 transition"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <Link 
+                  to="/login"
+                  className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition"
                 >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <Link className={`text-${textColorDark} dark:text-${textColorLight}`} to="/login">Login</Link>
-            )}
+                  Login
+                </Link>
+              )}
+            </div>
           </div>
         </nav>
       </header>
 
       {/* Hero Section */}
-      <section
-        className="w-full"
-        style={{
-          backgroundImage: `url('https://studio-bucket.s3-ap-southeast-2.amazonaws.com/image/profilePicture/original/Profile_8pspIAZxQVyu.jpg')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          minHeight: '50vh',
-        }}
-      >
-        <div className="container mx-auto px-6 py-24">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h1 className="text-5xl font-bold text-white mb-6">
-                Transform Your Business with Innovative IT Solutions
-              </h1>
-              <p className="text-lg text-gray-200 mb-8">
-                We deliver cutting-edge technology solutions that empower your business to thrive in the digital landscape.
-              </p>
-              <a href="/services" className="bg-blue-600 hover:bg-blue-800 text-white font-semibold py-4 px-8 rounded-xl shadow-md inline-flex items-center">
-                Explore Our Services <ArrowRight className="inline-block ml-3" />
+      <section className="relative overflow-hidden">
+        <div 
+          className="absolute inset-0 z-0"
+          style={{
+            backgroundImage: `url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2072&q=80')`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            filter: 'brightness(0.7)'
+          }}
+        />
+        <div className="relative z-10 container mx-auto px-6 py-24 md:py-32">
+          <div className="max-w-3xl">
+            <h1 className="text-4xl md:text-6xl font-bold text-white mb-6 leading-tight">
+              Transform Your Business with Innovative IT Solutions
+            </h1>
+            <p className="text-xl text-gray-200 mb-8 leading-relaxed">
+              We deliver cutting-edge technology solutions that empower your business to thrive in the digital landscape.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <a 
+                href="#services" 
+                className="inline-flex items-center px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition"
+              >
+                Explore Our Services
+                <ChevronRight className="ml-2 h-5 w-5" />
               </a>
             </div>
           </div>
@@ -121,33 +120,112 @@ function App() {
       </section>
 
       {/* Services Section */}
-      <section className="container mx-auto mt-20 px-6">
-        <h2 className={`text-3xl font-semibold mb-8 dark:text-${textColorLight}`}>Our Services</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-          {services.map((service, index) => (
-            <div key={index} className={`bg-white rounded-2xl shadow-lg dark:bg-${backgroundColorDark}`}>
-              <a href={service.link} target="_blank" rel="noopener noreferrer" className="block">
-                <img
-                  src={service.image}
-                  alt={service.name}
-                  className="rounded-t-2xl h-48 w-full object-cover"
-                />
-                <div className="p-8">
-                  <h3 className={`text-2xl font-semibold mb-4 dark:text-${textColorLight}`}>{service.name}</h3>
-                  <p className={`text-${textColorDark} dark:text-${textColorLight}`}>{service.description}</p>
-                </div>
-              </a>
-            </div>
-          ))}
+      <section id="services" className="py-20">
+        <div className="container mx-auto px-6">
+          <h2 className="text-3xl font-bold mb-16 text-center">Our Services</h2>
+          <div className="grid md:grid-cols-2 gap-10">
+            {services.map((service, index) => (
+              <div 
+                key={index}
+                className="group rounded-2xl overflow-hidden bg-white shadow-lg hover:shadow-xl transition"
+              >
+                <a href={service.link} target="_blank" rel="noopener noreferrer">
+                  <div className="relative h-64">
+                    <img
+                      src={service.image}
+                      alt={service.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                    <div className="absolute bottom-0 p-6">
+                      <h3 className="text-2xl font-semibold text-white mb-2">{service.name}</h3>
+                      <div className="flex gap-2 mb-3">
+                        {service.tags.map((tag, tagIndex) => (
+                          <span 
+                            key={tagIndex}
+                            className="px-3 py-1 rounded-full text-xs font-medium bg-white/20 text-white"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-6">
+                    <p className="text-gray-600">{service.description}</p>
+                    <div className="mt-4 flex items-center text-blue-600 font-medium">
+                      Learn More
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </div>
+                  </div>
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 bg-gradient-to-r from-blue-600 to-purple-600">
+        <div className="container mx-auto px-6 text-center">
+          <h2 className="text-3xl font-bold text-white mb-8">Ready to Transform Your Business?</h2>
+          <p className="text-xl text-white/80 mb-10 max-w-2xl mx-auto">
+            Join thousands of businesses that trust us with their digital transformation journey.
+          </p>
+          <a 
+            href="#contact" 
+            className="inline-flex items-center px-8 py-4 rounded-lg bg-white text-blue-600 font-semibold hover:bg-gray-100 transition"
+          >
+            Get Started Today
+            <ArrowRight className="ml-2 h-5 w-5" />
+          </a>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className={`bg-white py-6 dark:bg-${backgroundColorDark} dark:border-t dark:border-${primaryColor} w-full mt-12`}>
-        <div className="container mx-auto px-6 text-center">
-          <p className={`text-${secondaryColor} dark:text-${textColorLight}`}>
-            © {new Date().getFullYear()} YourBrand. All rights reserved.
-          </p>
+      <footer className="bg-white border-t border-gray-200 py-12">
+        <div className="container mx-auto px-6">
+          <div className="grid md:grid-cols-4 gap-8">
+            <div>
+              <div className="flex items-center space-x-3 mb-6">
+                <img
+                  src="https://studio-bucket.s3-ap-southeast-2.amazonaws.com/image/profilePicture/original/Profile_hksQdQJp7c64.png"
+                  alt="YourBrand Logo"
+                  className="h-8 w-8"
+                />
+              </div>
+              <p className="text-gray-600">
+                Empowering businesses through innovative technology solutions.
+              </p>
+            </div>
+            <div>
+              <h3 className="text-gray-900 text-lg font-semibold mb-4">Company</h3>
+              <ul className="space-y-2">
+                <li><a href="#about" className="text-gray-600 hover:text-blue-600 transition">About Us</a></li>
+                <li><a href="#careers" className="text-gray-600 hover:text-blue-600 transition">Careers</a></li>
+                <li><a href="#contact" className="text-gray-600 hover:text-blue-600 transition">Contact</a></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-gray-900 text-lg font-semibold mb-4">Services</h3>
+              <ul className="space-y-2">
+                <li><a href="#consulting" className="text-gray-600 hover:text-blue-600 transition">Consulting</a></li>
+                <li><a href="#development" className="text-gray-600 hover:text-blue-600 transition">Development</a></li>
+                <li><a href="#security" className="text-gray-600 hover:text-blue-600 transition">Security</a></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-gray-900 text-lg font-semibold mb-4">Connect</h3>
+              <ul className="space-y-2">
+                <li><a href="#twitter" className="text-gray-600 hover:text-blue-600 transition">Twitter</a></li>
+                <li><a href="#linkedin" className="text-gray-600 hover:text-blue-600 transition">LinkedIn</a></li>
+                <li><a href="#github" className="text-gray-600 hover:text-blue-600 transition">GitHub</a></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-gray-200 mt-12 pt-8 text-center text-gray-600">
+            <p>© {new Date().getFullYear()} All rights reserved.</p>
+          </div>
         </div>
       </footer>
     </div>
