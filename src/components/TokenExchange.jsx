@@ -19,8 +19,55 @@ const TokenExchange = () => {
   const navigate = useNavigate();
 
   const CLEEN_TOKEN_ADDRESS = '0x975aE55f09d4C9c485d1D97C49C549BEF7a24504';
+  const ADMIN_WALLET_ADDRESS = Web3.utils.toChecksumAddress('0x1C85f5520Ca012d9394e5349Db223fBeab6d6d30');
   const CLEEN_TOKEN_SYMBOL = 'CLEEN';
   const CLEEN_TOKEN_NAME = 'Cleen Token';
+
+  // Token ABI for transfer function
+  const TOKEN_ABI = [
+    {
+      "constant": false,
+      "inputs": [
+        {
+          "name": "_to",
+          "type": "address"
+        },
+        {
+          "name": "_value",
+          "type": "uint256"
+        }
+      ],
+      "name": "transfer",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "name": "_owner",
+          "type": "address"
+        }
+      ],
+      "name": "balanceOf",
+      "outputs": [
+        {
+          "name": "balance",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ];
 
   // Session management
   useEffect(() => {
@@ -30,7 +77,6 @@ const TokenExchange = () => {
         if (!session) {
           navigate('/login');
         } else {
-          // Fetch profile when session is available
           fetchProfile(session.user.id);
         }
       });
@@ -40,7 +86,6 @@ const TokenExchange = () => {
       if (!session) {
         navigate('/login');
       } else {
-        // Fetch profile when session changes
         fetchProfile(session.user.id);
       }
     });
@@ -48,7 +93,6 @@ const TokenExchange = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  // Fetch token types when component mounts
   useEffect(() => {
     fetchTokenTypes();
   }, []);
@@ -106,20 +150,8 @@ const TokenExchange = () => {
     const infuraUrl = `https://sepolia.infura.io/v3/${infuraProjectId}`;
     const web3 = new Web3(infuraUrl);
 
-    const balanceOfABI = [
-      {
-        "constant": true,
-        "inputs": [{ "name": "_owner", "type": "address" }],
-        "name": "balanceOf",
-        "outputs": [{ "name": "balance", "type": "uint256" }],
-        "payable": false,
-        "stateMutability": "view",
-        "type": "function"
-      }
-    ];
-
     try {
-      const contract = new web3.eth.Contract(balanceOfABI, CLEEN_TOKEN_ADDRESS);
+      const contract = new web3.eth.Contract(TOKEN_ABI, CLEEN_TOKEN_ADDRESS);
       const balance = await contract.methods.balanceOf(walletAddress).call();
       const formattedBalance = web3.utils.fromWei(balance, 'ether');
       setCleenTokenBalance(Math.floor(parseFloat(formattedBalance)).toString());
@@ -201,13 +233,61 @@ const TokenExchange = () => {
     }
   };
 
+  const truncateHash = (hash) => {
+    return `${hash.substring(0, 6)}...${hash.substring(hash.length - 4)}`;
+  };
+
+  const updateUserWallet = async (userId, tokenTypeId, amount) => {
+    try {
+      // First, check if the user already has a wallet entry for this token type
+      const { data: existingWallet, error: fetchError } = await supabase
+        .from('user_wallets')
+        .select('tokens')
+        .eq('user_id', userId)
+        .eq('token_type_id', tokenTypeId)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 means no rows returned
+        throw fetchError;
+      }
+
+      if (existingWallet) {
+        // Update existing wallet entry
+        const newAmount = parseFloat(existingWallet.tokens) + parseFloat(amount);
+        const { error: updateError } = await supabase
+          .from('user_wallets')
+          .update({ tokens: newAmount })
+          .eq('user_id', userId)
+          .eq('token_type_id', tokenTypeId);
+
+        if (updateError) throw updateError;
+      } else {
+        // Insert new wallet entry
+        const { error: insertError } = await supabase
+          .from('user_wallets')
+          .insert([
+            {
+              user_id: userId,
+              token_type_id: tokenTypeId,
+              tokens: amount
+            }
+          ]);
+
+        if (insertError) throw insertError;
+      }
+    } catch (error) {
+      console.error('Error updating user wallet:', error);
+      throw new Error('Failed to update user wallet');
+    }
+  };
+
   const handleExchange = async () => {
     if (!session) {
       navigate('/login');
       return;
     }
 
-    if (!fromAmount || !toAmount || !selectedTokenType) return;
+    if (!fromAmount || !toAmount || !selectedTokenType || !profile?.wallet_address) return;
 
     if (parseInt(fromAmount) > parseInt(cleenTokenBalance)) {
       showNotification('Insufficient balance', 'error');
@@ -216,18 +296,49 @@ const TokenExchange = () => {
 
     setLoading(true);
     try {
-      setTimeout(() => {
-        const selectedToken = tokenTypes.find(token => token.id === selectedTokenType);
-        showNotification(`Successfully added ${toAmount} ${selectedToken?.name} to your wallet!`, 'success');
-        setFromAmount('');
-        setToAmount('');
-        setSelectedTokenType('');
-        setConversionRate(null);
-        setLoading(false);
-      }, 1000);
+      // Connect to Web3 with MetaMask
+      if (!window.ethereum) {
+        throw new Error('MetaMask is not installed');
+      }
+
+      const web3 = new Web3(window.ethereum);
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+
+      // Create contract instance
+      const contract = new web3.eth.Contract(TOKEN_ABI, CLEEN_TOKEN_ADDRESS);
+
+      // Convert amount to wei
+      const amountInWei = web3.utils.toWei(fromAmount.toString(), 'ether');
+
+      // Ensure addresses are checksummed
+      const fromAddress = Web3.utils.toChecksumAddress(profile.wallet_address);
+
+      // Send transaction
+      const transaction = await contract.methods
+        .transfer(ADMIN_WALLET_ADDRESS, amountInWei)
+        .send({ from: fromAddress });
+
+      // Update user wallet in database
+      await updateUserWallet(session.user.id, selectedTokenType, toAmount);
+
+      const selectedToken = tokenTypes.find(token => token.id === selectedTokenType);
+      showNotification(
+        `Successfully exchanged ${fromAmount} CLEEN for ${toAmount} ${selectedToken?.name}! Tx: ${truncateHash(transaction.transactionHash)}`,
+        'success'
+      );
+
+      // Reset form
+      setFromAmount('');
+      setToAmount('');
+      setSelectedTokenType('');
+      setConversionRate(null);
+
+      // Refresh balance
+      fetchCleenTokenBalance(profile.wallet_address);
     } catch (error) {
       console.error('Exchange error:', error);
-      showNotification('Failed to exchange tokens. Please try again.', 'error');
+      showNotification(error.message || 'Failed to exchange tokens. Please try again.', 'error');
+    } finally {
       setLoading(false);
     }
   };
