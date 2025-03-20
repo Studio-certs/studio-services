@@ -5,6 +5,7 @@ import { supabase } from './lib/supabaseClient';
 import { BrowserRouter as Router, Route, Routes, Link, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Portfolio from './pages/Portfolio';
+import TokenExchange from './components/TokenExchange';
 
 function App() {
   const [session, setSession] = useState(null);
@@ -164,6 +165,9 @@ function App() {
           </div>
         </div>
       </section>
+
+      {/* Token Exchange Section */}
+      <TokenExchange />
 
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-r from-blue-600 to-purple-600">
