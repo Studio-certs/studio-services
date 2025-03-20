@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowDown, Wallet2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import Web3 from 'web3';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Notification from './Notification';
 
 const TokenExchange = () => {
@@ -12,34 +12,66 @@ const TokenExchange = () => {
   const [fromAmount, setFromAmount] = useState('');
   const [toAmount, setToAmount] = useState('');
   const [loading, setLoading] = useState(false);
-  const [tokenTypes, setTokenTypes] = useState([
-    { id: '1', name: 'Studio Coins', symbol: 'STUDIO', conversion_rate: '100' }
-  ]);
+  const [tokenTypes, setTokenTypes] = useState([]);
   const [selectedTokenType, setSelectedTokenType] = useState('');
   const [conversionRate, setConversionRate] = useState(null);
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   const navigate = useNavigate();
 
-  // Cleen Token contract details
   const CLEEN_TOKEN_ADDRESS = '0x975aE55f09d4C9c485d1D97C49C549BEF7a24504';
   const CLEEN_TOKEN_SYMBOL = 'CLEEN';
   const CLEEN_TOKEN_NAME = 'Cleen Token';
 
+  // Session management
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+        if (!session) {
+          navigate('/login');
+        } else {
+          // Fetch profile when session is available
+          fetchProfile(session.user.id);
+        }
+      });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session?.user) {
+      if (!session) {
+        navigate('/login');
+      } else {
+        // Fetch profile when session changes
         fetchProfile(session.user.id);
       }
     });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      }
-    });
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  // Fetch token types when component mounts
+  useEffect(() => {
+    fetchTokenTypes();
   }, []);
+
+  const fetchTokenTypes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('token_types')
+        .select('*')
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching token types:', error);
+        showNotification('Failed to load token types', 'error');
+        return;
+      }
+
+      setTokenTypes(data || []);
+    } catch (error) {
+      console.error('Error fetching token types:', error);
+      showNotification('Failed to load token types', 'error');
+    }
+  };
 
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type });
@@ -121,7 +153,6 @@ const TokenExchange = () => {
   };
 
   const handleFromAmountChange = (value) => {
-    // Remove any decimal points and non-numeric characters
     value = value.replace(/[^\d]/g, '');
     
     if (value === '') {
@@ -130,7 +161,6 @@ const TokenExchange = () => {
       return;
     }
 
-    // Convert to integer
     const numValue = parseInt(value);
     if (isNaN(numValue)) {
       setFromAmount('');
@@ -138,21 +168,18 @@ const TokenExchange = () => {
       return;
     }
 
-    // Ensure it's not negative
     if (numValue < 0) {
       setFromAmount('');
       setToAmount('');
       return;
     }
 
-    // Check if exceeds balance
     if (numValue > parseInt(cleenTokenBalance)) {
       value = cleenTokenBalance;
     }
 
     setFromAmount(value);
 
-    // Update the "To" amount if a token is selected
     if (selectedTokenType) {
       const selectedToken = tokenTypes.find(token => token.id === selectedTokenType);
       updateToAmount(value, selectedToken);
@@ -189,7 +216,6 @@ const TokenExchange = () => {
 
     setLoading(true);
     try {
-      // Simulate exchange success
       setTimeout(() => {
         const selectedToken = tokenTypes.find(token => token.id === selectedTokenType);
         showNotification(`Successfully added ${toAmount} ${selectedToken?.name} to your wallet!`, 'success');
@@ -206,8 +232,48 @@ const TokenExchange = () => {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      navigate('/');
+    } catch (error) {
+      console.error('Error logging out:', error.message);
+      showNotification('Failed to log out. Please try again.', 'error');
+    }
+  };
+
   return (
-    <section className="py-20 bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-sm border-b border-gray-200">
+        <nav className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Link to="/" className="flex items-center">
+              <img
+                src="https://studio-bucket.s3-ap-southeast-2.amazonaws.com/image/profilePicture/original/Profile_hksQdQJp7c64.png"
+                alt="YourBrand Logo"
+                className="h-8 w-8 mr-2"
+              />
+            </Link>
+
+            <div className="flex items-center space-x-6">
+              <Link 
+                to="/portfolio" 
+                className="text-sm font-medium hover:text-blue-600 transition"
+              >
+                Portfolio
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="text-sm font-medium hover:text-blue-600 transition"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </nav>
+      </header>
+
       <Notification
         show={notification.show}
         message={notification.message}
@@ -215,104 +281,111 @@ const TokenExchange = () => {
         onClose={hideNotification}
       />
       
-      <div className="container mx-auto px-6">
-        <div className="max-w-2xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12">Exchange Tokens</h2>
-          
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            {/* From Token (Cleen Token) */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <label className="block text-sm font-medium text-gray-700">From</label>
-                {session && (
-                  <div className="flex items-center text-sm text-gray-500">
-                    <Wallet2 className="h-4 w-4 mr-1" />
-                    Balance: {cleenTokenBalance} CLEEN
+      <main className="min-h-[calc(100vh-136px)] flex items-center justify-center py-20">
+        <div className="container mx-auto px-6">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white/70 backdrop-blur-lg rounded-3xl shadow-xl border border-white/50 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-6">
+                <h2 className="text-2xl font-bold text-white text-center">Exchange Tokens</h2>
+              </div>
+
+              <div className="p-8">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <label className="block text-sm font-medium text-gray-700">From</label>
+                    {session && (
+                      <div className="flex items-center text-sm text-gray-500 bg-gray-50 px-3 py-1 rounded-full">
+                        <Wallet2 className="h-4 w-4 mr-1" />
+                        Balance: {cleenTokenBalance} CLEEN
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex space-x-4">
+                    <div className="flex-1 px-4 py-3 bg-blue-50 rounded-xl font-medium text-blue-700 border border-blue-100">
+                      {CLEEN_TOKEN_NAME} ({CLEEN_TOKEN_SYMBOL})
+                    </div>
+                    <input
+                      type="number"
+                      value={fromAmount}
+                      onChange={(e) => handleFromAmountChange(e.target.value)}
+                      placeholder="0"
+                      min="1"
+                      step="1"
+                      className="flex-1 rounded-xl border-gray-200 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-center my-8">
+                  <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-3 rounded-full shadow-lg">
+                    <ArrowDown className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <label className="block text-sm font-medium text-gray-700">To</label>
+                  </div>
+                  <div className="flex space-x-4">
+                    <select
+                      value={selectedTokenType}
+                      onChange={(e) => handleTokenTypeChange(e.target.value)}
+                      className="flex-1 rounded-xl border-gray-200 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
+                    >
+                      <option value="">Select Token</option>
+                      {tokenTypes
+                        .filter(token => token.symbol !== 'CLEEN')
+                        .map(token => (
+                          <option key={token.id} value={token.id}>
+                            {token.name}
+                          </option>
+                        ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={toAmount}
+                      readOnly
+                      placeholder="0"
+                      className="flex-1 rounded-xl bg-gray-50 border-gray-200"
+                    />
+                  </div>
+                </div>
+
+                {conversionRate !== null && (
+                  <div className="mt-6 py-3 px-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-100/50">
+                    <p className="text-sm text-gray-600 text-center font-medium">
+                      Exchange Rate: 1 CLEEN = {conversionRate} {
+                        tokenTypes.find(token => token.id === selectedTokenType)?.name
+                      }
+                    </p>
                   </div>
                 )}
-              </div>
-              <div className="flex space-x-4">
-                <div className="flex-1 px-4 py-3 bg-gray-50 rounded-lg text-gray-700">
-                  {CLEEN_TOKEN_NAME} ({CLEEN_TOKEN_SYMBOL})
-                </div>
-                <input
-                  type="number"
-                  value={fromAmount}
-                  onChange={(e) => handleFromAmountChange(e.target.value)}
-                  placeholder="0"
-                  min="1"
-                  step="1"
-                  className="flex-1 rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
 
-            {/* Arrow Icon */}
-            <div className="flex justify-center my-6">
-              <div className="bg-gray-100 p-3 rounded-full">
-                <ArrowDown className="h-6 w-6 text-gray-400" />
-              </div>
-            </div>
-
-            {/* To Token */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <label className="block text-sm font-medium text-gray-700">To</label>
-              </div>
-              <div className="flex space-x-4">
-                <select
-                  value={selectedTokenType}
-                  onChange={(e) => handleTokenTypeChange(e.target.value)}
-                  className="flex-1 rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                <button
+                  onClick={handleExchange}
+                  disabled={!fromAmount || !toAmount || !selectedTokenType || loading || !session}
+                  className="w-full mt-8 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-xl font-medium hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:hover:scale-100"
                 >
-                  <option value="">Select Token</option>
-                  {tokenTypes
-                    .filter(token => token.symbol !== 'CLEEN')
-                    .map(token => (
-                      <option key={token.id} value={token.id}>
-                        {token.name}
-                      </option>
-                    ))}
-                </select>
-                <input
-                  type="text"
-                  value={toAmount}
-                  readOnly
-                  placeholder="0"
-                  className="flex-1 rounded-lg bg-gray-50 border-gray-300"
-                />
+                  {!session ? 'Connect Wallet to Exchange' : loading ? 'Exchanging...' : 'Exchange Tokens'}
+                </button>
+
+                {!session && (
+                  <p className="mt-4 text-sm text-gray-500 text-center">
+                    Please log in to exchange tokens
+                  </p>
+                )}
               </div>
             </div>
-
-            {/* Conversion Rate Display */}
-            {conversionRate !== null && (
-              <div className="mt-6 mb-4 py-3 px-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600 text-center">
-                  Exchange Rate: 1 CLEEN = {conversionRate} {
-                    tokenTypes.find(token => token.id === selectedTokenType)?.name
-                  }
-                </p>
-              </div>
-            )}
-
-            {/* Exchange Button */}
-            <button
-              onClick={handleExchange}
-              disabled={!fromAmount || !toAmount || !selectedTokenType || loading || !session}
-              className="w-full mt-4 bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              {!session ? 'Connect Wallet to Exchange' : loading ? 'Exchanging...' : 'Exchange Tokens'}
-            </button>
-
-            {!session && (
-              <p className="mt-4 text-sm text-gray-500 text-center">
-                Please log in to exchange tokens
-              </p>
-            )}
           </div>
         </div>
-      </div>
-    </section>
+      </main>
+
+      <footer className="bg-white/80 backdrop-blur-sm border-t border-gray-200 py-6">
+        <div className="container mx-auto px-6 text-center">
+          <p className="text-gray-600">© {new Date().getFullYear()} All rights reserved.</p>
+        </div>
+      </footer>
+    </div>
   );
 };
 

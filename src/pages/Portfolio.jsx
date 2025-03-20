@@ -31,12 +31,20 @@ const Portfolio = () => {
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
         setSession(session);
+        if (!session) {
+          navigate('/login');
+        }
       });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (!session) {
+        navigate('/login');
+      }
     });
-  }, []);
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -205,8 +213,13 @@ const Portfolio = () => {
   }, [session, profile?.wallet_address]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/');
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      navigate('/');
+    } catch (error) {
+      console.error('Error logging out:', error.message);
+    }
   };
 
   const joinDate = profile?.created_at ? new Date(profile.created_at).toLocaleDateString(undefined, {
@@ -250,6 +263,12 @@ const Portfolio = () => {
             </Link>
 
             <div className="flex items-center space-x-6">
+              <Link 
+                to="/exchange" 
+                className="text-sm font-medium hover:text-blue-600 transition"
+              >
+                Exchange Tokens
+              </Link>
               <button
                 onClick={handleLogout}
                 className="text-sm font-medium hover:text-blue-600 transition"

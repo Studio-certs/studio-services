@@ -166,9 +166,6 @@ function App() {
         </div>
       </section>
 
-      {/* Token Exchange Section */}
-      <TokenExchange />
-
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-r from-blue-600 to-purple-600">
         <div className="container mx-auto px-6 text-center">
@@ -243,6 +240,7 @@ function Root() {
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<App />} />
         <Route path="/portfolio" element={<Portfolio />} />
+        <Route path="/exchange" element={<TokenExchange />} />
       </Routes>
     </Router>
   );

@@ -10,6 +10,31 @@ const Login = () => {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+
+      if (error) {
+        setError(error.message);
+      } else if (data?.user) {
+        // Store the session in localStorage
+        localStorage.setItem('supabase.auth.token', JSON.stringify(data.session));
+        navigate('/portfolio');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation Bar */}
@@ -42,28 +67,7 @@ const Login = () => {
               </div>
             )}
 
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              setLoading(true);
-              setError(null);
-
-              try {
-                const { data, error } = await supabase.auth.signInWithPassword({
-                  email: email,
-                  password: password,
-                });
-
-                if (error) {
-                  setError(error.message);
-                } else {
-                  navigate('/portfolio');
-                }
-              } catch (err) {
-                setError('An unexpected error occurred.');
-              } finally {
-                setLoading(false);
-              }
-            }}>
+            <form onSubmit={handleLogin}>
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="email">
